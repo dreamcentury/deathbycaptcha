@@ -47,6 +47,8 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
                 CURLOPT_HEADER => false,
                 CURLOPT_RETURNTRANSFER => true,
                 CURLOPT_FOLLOWLOCATION => true,
+                CURLOPT_VERBOSE => true,
+				CURLINFO_HEADER_OUT  => true,
                 CURLOPT_AUTOREFERER => false,
                 CURLOPT_HTTPHEADER => array(
                     'Accept: ' . $this->_response_type,
@@ -58,6 +60,24 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
 
         return $this;
     }
+    
+    protected function getCurlCommand(){
+    	$command = "curl ";
+    	$params = array(
+    		["--max-time" , self::DEFAULT_TIMEOUT],
+    		["--connect-timeout" , (int)(self::DEFAULT_TIMEOUT / 4)],
+    		["--user-agent" , self::API_VERSION],
+			["--location" , ""],
+			["--silent" , ""],
+			["--write-out" , '\n%{response_code}'],
+			["--header" , "Expect: "],
+			["--header" , "Accept: $this->_response_type"],
+		);
+    	foreach ($params as $param){
+    		$command.= " $param[0] " . ( mb_strlen( (string) $param[1] ) > 0 ? "'$param[1]'" : "" );
+		}
+		return $command;
+	}
 
     /**
      * Makes an API call
@@ -79,55 +99,46 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
             ));
         }
 
-        $this->_connect();
-
-        $opts = array(CURLOPT_URL => self::BASE_URL . '/' . trim($cmd, '/'),
-                      CURLOPT_REFERER => '');
-        if (null !== $payload) {
-            $opts[CURLOPT_POST] = true;
-            $opts[CURLOPT_POSTFIELDS] = array_key_exists('captchafile', $payload)
-                ? $payload
-                : http_build_query($payload);
-        } else {
-            $opts[CURLOPT_HTTPGET] = true;
-        }
-        curl_setopt_array($this->_conn, $opts);
-
-        if ($this->is_verbose) {
-            fputs(STDERR, time() . " SEND: {$cmd} " . serialize($payload) . "\n");
-        }
-
-        $response = curl_exec($this->_conn);
-        if (0 < ($err = curl_errno($this->_conn))) {
-            throw new DeathByCaptchaIOException(
-                "API connection failed: [{$err}] " . curl_error($this->_conn)
-            );
-        }
-
-        if ($this->is_verbose) {
-            fputs(STDERR, time() . " RECV: {$response}\n");
-        }
-
-        $status_code = curl_getinfo($this->_conn, CURLINFO_HTTP_CODE);
-        if (403 == $status_code) {
-            throw new DeathByCaptchaAccessDeniedException(
-                'Access denied, check your credentials and/or balance'
-            );
-        } else if (400 == $status_code || 413 == $status_code) {
-            throw new DeathByCaptchaInvalidCaptchaException(
-                "CAPTCHA was rejected by the service, check if it's a valid image"
-            );
-        } else if (503 == $status_code) {
-            throw new DeathByCaptchaServiceOverloadException(
-                "CAPTCHA was rejected due to service overload, try again later"
-            );
-        } else if (!($response = call_user_func($this->_response_parser, $response))) {
-            throw new DeathByCaptchaServerException(
-                'Invalid API response'
-            );
-        } else {
-            return $response;
-        }
+        $command = $this->getCurlCommand();
+	
+		$url = self::BASE_URL . '/' . trim($cmd, '/');
+		foreach($payload as $key => $element){
+			$command .= " --form $key='$element' ";
+		}
+	
+		$command .= " $url ";
+		xdebug_var_dump($command);
+		$res = exec($command, $output, $var);
+		if (0 < $var) {
+			throw new DeathByCaptchaIOException(
+				"API connection failed: [{$var}] " . implode(',', $output)
+			);
+		}
+	
+		$status_code = (int) $res;
+		$format_output = implode('',array_slice($output, 0, -1));
+		$parser = $this->_response_parser;
+	
+		if (403 == $status_code) {
+			throw new DeathByCaptchaAccessDeniedException(
+				'Access denied, check your credentials and/or balance'
+			);
+		} else if (400 == $status_code || 413 == $status_code) {
+			throw new DeathByCaptchaInvalidCaptchaException(
+				"CAPTCHA was rejected by the service, check if it's a valid image"
+			);
+		} else if (503 == $status_code) {
+			throw new DeathByCaptchaServiceOverloadException(
+				"CAPTCHA was rejected due to service overload, try again later"
+			);
+//		} else if (!($output = self::parse_plain_response($format_output))) {
+		} else if ( !( $output = call_user_func($parser, $format_output) )) {
+			throw new DeathByCaptchaServerException(
+				'Invalid API response'
+			);
+		} else {
+			return $output;
+		}
     }
 
 
@@ -197,8 +208,7 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
                 @unlink($tmp_fn);
                 throw $e;
             }
-            @unlink($tmp_fn);
-            if (0 < ($cid = (int)@$captcha['captcha'])) {
+            if (0 < ($cid = (int)@$captcha['captcha']) ) {
                 return array(
                     'captcha' => $cid,
                     'text' => (!empty($captcha['text']) ? $captcha['text'] : null),

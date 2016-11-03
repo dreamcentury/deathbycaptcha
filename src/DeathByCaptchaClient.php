@@ -182,7 +182,7 @@ abstract class DeathByCaptchaClient
                 sleep(self::POLLS_INTERVAL);
                 $c = $this->get_captcha($c['captcha']);
             }
-            if ($c && $c['text'] && $c['is_correct']) {
+            if ($c && @$c['text'] && @$c['is_correct']) {
                 return $c;
             }
         }
