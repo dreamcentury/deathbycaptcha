@@ -107,7 +107,9 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
 		}
 	
 		$command .= " $url ";
+		echo '<pre>';
 		xdebug_var_dump($command);
+		echo '</pre>';
 		$res = exec($command, $output, $var);
 		if (0 < $var) {
 			throw new DeathByCaptchaIOException(
