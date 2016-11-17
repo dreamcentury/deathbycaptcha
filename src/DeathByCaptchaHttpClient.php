@@ -107,9 +107,6 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
 		}
 	
 		$command .= " $url ";
-		echo '<pre>';
-		xdebug_var_dump($command);
-		echo '</pre>';
 		$res = exec($command, $output, $var);
 		if (0 < $var) {
 			throw new DeathByCaptchaIOException(
@@ -133,7 +130,6 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
 			throw new DeathByCaptchaServiceOverloadException(
 				"CAPTCHA was rejected due to service overload, try again later"
 			);
-//		} else if (!($output = self::parse_plain_response($format_output))) {
 		} else if ( !( $output = call_user_func($parser, $format_output) )) {
 			throw new DeathByCaptchaServerException(
 				'Invalid API response'
