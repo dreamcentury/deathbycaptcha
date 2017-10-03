@@ -90,18 +90,22 @@ class DeathByCaptchaHttpClient extends DeathByCaptchaClient
      * @throws DeathByCaptchaInvalidCaptchaException On invalid CAPTCHAs rejected by the service
      * @throws DeathByCaptchaServerException On API server errors
      */
-    protected function _call($cmd, $payload=null)
+    protected function _call($cmd, $payload= null)
     {
+    	
         if (null !== $payload) {
             $payload = array_merge($payload, array(
                 'username' => $this->_userpwd[0],
                 'password' => $this->_userpwd[1],
             ));
         }
+        
+        $payload = $payload ?? [];
 
         $command = $this->getCurlCommand();
 	
 		$url = self::BASE_URL . '/' . trim($cmd, '/');
+
 		foreach($payload as $key => $element){
 			$command .= " --form $key='$element' ";
 		}

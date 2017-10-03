@@ -85,6 +85,7 @@ abstract class DeathByCaptchaClient
 
     protected function _load_captcha($captcha)
     {
+   	
         if (is_resource($captcha)) {
             $img = '';
             rewind($captcha);
